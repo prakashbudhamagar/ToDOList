@@ -1,0 +1,77 @@
+# Three containers:
+#   api   - Django + DRF behind gunicorn, SQLite stored on the "sqlite-data" volume
+#   web   - nginx serving the built React app and reverse-proxying /api/ to api
+#   redis - cache for the task list endpoint (internal only, no volume)
+#
+#   docker compose up --build     ->  http://localhost:8080
+#   docker compose down -v        ->  also removes the stored tasks
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      # SECURITY: replace this before exposing the app to anything but localhost.
+      DJANGO_SECRET_KEY: "django-insecure-change-me-before-deploying"
+      DJANGO_DEBUG: "False"
+      # Host names only, no ports. "api" is this service's name on the compose network.
+      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,api"
+      # Origins allowed to make write requests (the nginx entrypoint below).
+      CSRF_TRUSTED_ORIGINS: "http://localhost:${WEB_PORT:-8080},http://127.0.0.1:${WEB_PORT:-8080}"
+      CORS_ALLOWED_ORIGINS: "http://localhost:${WEB_PORT:-8080},http://127.0.0.1:${WEB_PORT:-8080}"
+      SQLITE_PATH: "/app/data/db.sqlite3"
+      # Cache used by the task list endpoint (see todo_list/views.py).
+      REDIS_URL: "redis://redis:6379/0"
+    volumes:
+      - sqlite-data:/app/data
+    # The API only needs Redis at request time, but waiting for it keeps the very
+    # first request from missing the cache.
+    depends_on:
+      redis:
+        condition: service_healthy
+    # Published so a Vite dev server on the host can proxy to the container
+    # (frontend/vite.config.js targets 127.0.0.1:8000).
+    ports:
+      - "${API_PORT:-8000}:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/todos/')"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    # Pure cache: nothing in it has to survive a restart, so no volume and no
+    # persistence. It is not published to the host either, which keeps this Redis
+    # separate from any other one already running on :6379.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+
+volumes:
+  sqlite-data:
+

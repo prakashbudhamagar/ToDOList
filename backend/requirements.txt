@@ -1,0 +1,19 @@
+# Django 5.2 stack - pinned to the versions installed in venv/ (verified with
+# `pip freeze`). Install with:  pip install -r backend/requirements.txt
+Django==5.2.17
+# REST API consumed by the React frontend in ../frontend
+djangorestframework==3.18.1
+django-cors-headers==4.9.0
+asgiref==3.12.1
+sqlparse==0.6.0
+# tzdata is required by Django's timezone support on Windows (no system zoneinfo db).
+tzdata==2026.4
+# WSGI server used by the Docker image (POSIX only - not installed by manage.py).
+gunicorn==26.2.0
+# Lets Django serve its own static files (admin CSS/JS) in Docker, so no
+# separate static-file service is needed. See config/settings.py.
+whitenoise==6.12.0
+# Cache backend: Redis in Docker (REDIS_URL), in-memory otherwise. See config/settings.py.
+django-redis==7.0.0
+redis==8.1.0
+typing_extensions==4.16.0

@@ -9,7 +9,7 @@ export default function App() {
 
   return (
     <main className="app">
-      <h1>My Task</h1>
+      <h1>Prkash to Do</h1>
 
       <AddTodoForm onAdd={addTodo} />
 

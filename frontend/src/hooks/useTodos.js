@@ -76,5 +76,5 @@ export function useTodos() {
     [loadTodos],
   )
 
-  return { todos, loading, error, addTodo, editTodo, removeTodo }
+  return { todos, loading, error, addTodo, editTodo, removeTodo, reload: loadTodos }
 }

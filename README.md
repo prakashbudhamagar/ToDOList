@@ -21,6 +21,7 @@ There are two ways to run it:
 | Database | SQLite (`backend/db.sqlite3` locally, a volume in Docker) |
 | Cache | Redis 8 via django-redis 7 (Docker), in-process memory cache otherwise |
 | Frontend | React 19 + Vite 8 (in `frontend/`) |
+| AI assistant | Google Gemini (`gemini-3.6-flash` default) via `POST /api/chat/` - key in `backend/.env`, never in the browser |
 | Node.js (frontend only) | 22 |
 | gunicorn (Docker only) | 26.2.0 |
 | Docker images | `python:3.11-slim`, `node:22-alpine`, `nginx:1.27-alpine` |
@@ -30,7 +31,7 @@ There are two ways to run it:
 Django serves JSON only (`/api/` plus `/admin/`); every screen comes from the
 React app in `frontend/`.
 
-```
+```text
 browser
    |  http://localhost:8080                http://localhost:5173 (dev)
    v
@@ -39,6 +40,7 @@ browser
    +-- static React bundle        |      +-- same-origin: no CORS preflight,
                                   |          first-party csrftoken cookie
                                   +--> [ redis ]  cached task list (60s TTL)
+                                  +--> [ Gemini ] chat assistant (/api/chat/)
 ```
 
 ## Running with Docker
@@ -79,6 +81,8 @@ Everything configurable is read from the environment (`docker-compose.yml` sets 
 | `CORS_ALLOWED_ORIGINS` | extra origins allowed to read the API | `http://localhost:8080,http://127.0.0.1:8080` |
 | `SQLITE_PATH` | where the database file lives | `/app/data/db.sqlite3` |
 | `REDIS_URL` | cache location; leave unset to use the in-process memory cache | `redis://redis:6379/0` |
+| `GEMINI_API_KEY` | LLM key for the `/api/chat/` assistant | empty - put it in `backend/.env` or export it before `compose up` |
+| `GEMINI_MODEL` | Gemini model name | `gemini-3.6-flash` |
 
 The nginx entrypoint proxies `/api/` only, so Django admin is not exposed in
 Docker. Run Django directly to use the admin (see below).
@@ -161,6 +165,7 @@ there is nothing but `/api/` and `/admin/`. `frontend/vite.config.js` proxies
 | PUT / PATCH | `/api/todos/<id>/` | update a task (the React app uses PATCH, so `create_at` is untouched) |
 | DELETE | `/api/todos/<id>/` | delete a task |
 | GET | `/api/csrf/` | sets the `csrftoken` cookie used for write requests |
+| POST | `/api/chat/` | chat with the Gemini assistant (`{"message": "...", "history": [...]}` -> `{"reply": "...", "actions": [...]}`) |
 
 Open any `/api/` URL in a browser to use DRF's browsable API. Write requests need
 the `X-CSRFToken` header when you are also logged into the admin in the same
@@ -173,6 +178,47 @@ cd frontend
 npm run build      # outputs frontend/dist (git-ignored)
 npm run preview    # serve the built bundle locally
 ```
+
+## AI assistant
+
+A chat widget (bottom-right of the React app) talks to Google Gemini. The flow is
+deliberately backend-only so the key can never leak:
+
+```
+browser -- POST /api/chat/ {message, history} --> Django --> Gemini API
+browser <-- {reply, actions} <-- Django <-- tool results + final answer
+```
+
+- The key lives in `backend/.env` as `GEMINI_API_KEY` (git-ignored; copy
+  `backend/.env.example` to `backend/.env` and paste a free key from
+  <https://aistudio.google.com/apikey>). `backend/config/settings.py` loads that
+  file locally, and `docker-compose.yml` passes the same keys through
+  (`env_file: ./backend/.env`, overridable with real environment variables).
+- `backend/todo_list/agent.py` calls Gemini's `generateContent` REST endpoint with
+  plain `urllib` (no SDK dependency) and exposes five tools the model can call:
+  `list_tasks`, `create_task`, `update_task`, `delete_task`, `recommend_tasks`
+  (task count + the 5 oldest tasks, used when the user asks "what should I do
+  next?"). Tool writes go straight to the database and clear the cached task
+  list, so the UI reload shows them immediately.
+- `POST /api/chat/` (`ChatView` in `backend/todo_list/views.py`) validates the
+  message (required, max 2000 chars; last 6 history turns forwarded) and returns
+  `{"reply": "...", "actions": [...]}`. With no key configured it answers 503.
+- The React side is `frontend/src/components/ChatPanel.jsx` (floating Chat button
+  -> panel with bubbles, "Thinking…" state and error display), `sendChatMessage`
+  in `frontend/src/api/todos.js`, and a `reload` action from `useTodos.js` so the
+  list refreshes whenever the assistant ran a task tool. Voice is built into the
+  panel with the browser's free Web Speech API (no key, no dependency): a Speak
+  button fills the input via SpeechRecognition, and replies are read aloud via
+  speechSynthesis with a "Speak replies" toggle (best in Chrome/Edge over
+  HTTP-or-HTTPS `localhost`; the button hides itself where unsupported).
+
+Without a key the endpoint returns 503 and the widget shows the error; the chat
+tests in `backend/todo_list/tests/test_api.py` stub the Gemini HTTP call, so
+`python manage.py test` needs no key and no network.
+
+> Note: your current `backend/.env` value (`AQ.Ab8R…`) is not a Gemini key -
+> real keys from <https://aistudio.google.com/apikey> start with `AIza…` and
+> will fail with "Gemini rejected the request" until replaced.
 
 ## Admin
 
@@ -209,6 +255,7 @@ ToDOList/                          <- repository root
 ├── docker-compose.yml             <- api (Django) + web (nginx/React)
 ├── backend/                       <- Django project (JSON API only)
 │   ├── .dockerignore              <- keeps the API build context small
+│   ├── .env.example             <- copy to .env, paste GEMINI_API_KEY (git-ignored)
 │   ├── Dockerfile                 <- python:3.11-slim + gunicorn
 │   ├── docker-entrypoint.sh       <- migrate, then start gunicorn
 │   ├── manage.py
@@ -221,8 +268,9 @@ ToDOList/                          <- repository root
 │   │   └── wsgi.py
 │   └── todo_list/                 <- the application
 │       ├── models.py              <- Todo model (title, create_at)
+│       ├── agent.py               <- Gemini chat backend + task tools (urllib, no SDK)
 │       ├── serializers.py         <- TodoSerializer
-│       ├── views.py               <- TodoViewSet + csrf endpoint
+│       ├── views.py               <- TodoViewSet + csrf + ChatView (/api/chat/)
 │       ├── urls.py                <- the /api/ router
 │       ├── admin.py
 │       ├── migrations/
@@ -243,13 +291,14 @@ ToDOList/                          <- repository root
         ├── index.css
         ├── api/
         │   ├── client.js          <- fetch wrapper + CSRF handling
-        │   └── todos.js           <- one function per endpoint
+        │   └── todos.js           <- one function per endpoint + sendChatMessage
         ├── components/
         │   ├── AddTodoForm.jsx    <- create a task
+        │   ├── ChatPanel.jsx      <- floating assistant chat (talks to /api/chat/)
         │   ├── TodoList.jsx       <- rows, loading and empty state
         │   └── TodoItem.jsx       <- row, inline edit, delete confirmation
         └── hooks/
-            └── useTodos.js        <- task state and API actions
+            └── useTodos.js        <- task state and API actions (incl. reload)
 ```
 
 ## Notes

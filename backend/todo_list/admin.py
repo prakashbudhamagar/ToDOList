@@ -2,7 +2,6 @@ from django.contrib import admin
 
 from .models import Todo
 
-
 class TodoAdmin(admin.ModelAdmin):
     """What makes the task list usable instead of the bare default."""
 
@@ -15,7 +14,6 @@ class TodoAdmin(admin.ModelAdmin):
     date_hierarchy = 'create_at'
     # 50 rows per page keeps a long todo list manageable.
     list_per_page = 50
-
 
 admin.site.register(Todo, TodoAdmin)
 

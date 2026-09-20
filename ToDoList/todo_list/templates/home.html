@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todo-Home</title>
+   
+</head>
+<body>
+    <h1>Ty Task</h1>    
+    <div>
+        {%for task in taske %}
+
+        <h2>{{task}}</h2>
+
+
+        {% empty %}
+        <h2>No Task Yet </h2>
+        {% endfor %}
+    </div>
+</body>
+</html>

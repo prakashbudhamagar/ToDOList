@@ -32,7 +32,6 @@ class AgentError(Exception):
         super().__init__(message)
         self.status = status
 
-
 def get_config():
     """Read the Gemini key/model from Django settings (env-driven)."""
     from django.conf import settings

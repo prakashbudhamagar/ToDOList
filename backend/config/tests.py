@@ -1,4 +1,5 @@
 import os
+import shutil
 import tempfile
 from unittest.mock import patch
 
@@ -7,6 +8,11 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from config.settings import load_dotenv
+
+# Resolved now, while the real environment is still intact: the tests below clear
+# os.environ, which would otherwise make tempfile fall back to the current
+# directory - and keep using it for the rest of the process.
+TEMP_ROOT = tempfile.gettempdir()
 
 
 class CsrfEndpointTests(APITestCase):
@@ -22,9 +28,15 @@ class CsrfEndpointTests(APITestCase):
 class LoadDotenvTests(SimpleTestCase):
     """The dependency-free .env reader in config/settings.py."""
 
+    def make_temp_dir(self):
+        """A throwaway directory that is deleted when the test finishes."""
+        path = tempfile.mkdtemp(dir=TEMP_ROOT)
+        self.addCleanup(shutil.rmtree, path, ignore_errors=True)
+        return path
+
     def write_env(self, text):
         """A temporary .env file holding `text`."""
-        path = os.path.join(tempfile.mkdtemp(), '.env')
+        path = os.path.join(self.make_temp_dir(), '.env')
         with open(path, 'w', encoding='utf-8') as fh:
             fh.write(text)
         return path
@@ -59,6 +71,6 @@ class LoadDotenvTests(SimpleTestCase):
 
     def test_missing_file_is_not_an_error(self):
         with patch.dict(os.environ, {}, clear=True):
-            load_dotenv(os.path.join(tempfile.mkdtemp(), 'missing.env'))
+            load_dotenv(os.path.join(self.make_temp_dir(), 'missing.env'))
 
             self.assertEqual(os.environ, {})

@@ -117,11 +117,6 @@ button.danger:hover {
   cursor: pointer;
 }
 
-.priority-select:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
 .priority-low {
   color: #1e7b45;
   background: #e7f6ec;

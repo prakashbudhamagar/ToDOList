@@ -18,7 +18,7 @@ local_settings.py
 *~
 
 # ---------------------------------------------------------------
-# Node / JS tooling (in case a frontend is added later)
+# Node / JS tooling (the frontend/ workspace and the root npm scripts)
 # ---------------------------------------------------------------
 node_modules/
 npm-debug.log*

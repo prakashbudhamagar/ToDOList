@@ -285,12 +285,13 @@ browser <-- {reply, actions} <-- Django <-- tool results + final answer
 - `backend/chat/agent.py` calls Gemini's `generateContent` REST endpoint with
   plain `urllib` (no SDK dependency) and exposes five tools the model can call:
   `list_tasks`, `create_task`, `update_task`, `delete_task`, `recommend_tasks`.
-  The first four take an optional `priority` (`low`/`medium`/`high`);
-  `recommend_tasks` returns the task count plus the five tasks to tackle first -
-  urgent before old, each with its priority and an estimated duration from
-  `tasks/estimates.py` - so the model can answer "what should I do next?" with
-  both an order and a time budget. Tool writes go straight to the database and
-  clear the cached task list, so the UI reload shows them immediately.
+  `create_task` and `update_task` take an optional `priority`
+  (`low`/`medium`/`high`); `recommend_tasks` returns the task count plus the five
+  tasks to tackle first - urgent before old, each with its priority and an
+  estimated duration from `tasks/estimates.py` - so the model can answer "what
+  should I do next?" with both an order and a time budget. Tool writes go
+  straight to the database and clear the cached task list, so the UI reload shows
+  them immediately.
 - `POST /api/chat/` (`ChatView` in `backend/chat/views.py`) validates the
   message (required, max 2000 chars; last 6 history turns forwarded) and returns
   `{"reply": "...", "actions": [...]}`. With no key configured it answers 503.

@@ -1,4 +1,8 @@
+from unittest.mock import patch
+import copy
+
 from django.core.cache import cache
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
@@ -134,4 +138,125 @@ class TodoApiTests(APITestCase):
         self.client.patch(detail_url, {'title': 'Buy oat milk'}, format='json')
         self.assertEqual(self.client.get(self.list_url).json()[0]['title'], 'Buy oat milk')
 
+<<<<<<< HEAD:backend/tasks/tests/test_api.py
         self.client.delete(detail_url)
+=======
+        self.client.delete(detail_url)
+
+
+@override_settings(GEMINI_API_KEY='test-key')
+class ChatApiTests(APITestCase):
+    """POST /api/chat/ - the Gemini-backed assistant (Gemini calls are stubbed)."""
+
+    def setUp(self):
+        self.chat_url = reverse('api-chat')
+        cache.clear()
+
+    def test_chat_rejects_empty_message(self):
+        response = self.client.post(self.chat_url, {'message': '  '}, format='json')
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_chat_replies_without_tools(self):
+        fake_reply = {'candidates': [{'content': {'parts': [{'text': 'Hello!'}]}}]}
+        with patch('todo_list.agent._generate', return_value=fake_reply):
+            response = self.client.post(self.chat_url, {'message': 'hi'}, format='json')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'reply': 'Hello!', 'actions': []})
+
+    def test_chat_runs_create_tool_then_answers(self):
+        first = {'candidates': [{'content': {'parts': [
+            {'functionCall': {'name': 'create_task', 'args': {'title': 'Buy milk'}}},
+        ]}}]}
+        second = {'candidates': [{'content': {'parts': [
+            {'text': 'Added "Buy milk" to your list.'},
+        ]}}]}
+        with patch('todo_list.agent._generate', side_effect=[first, second]):
+            response = self.client.post(self.chat_url, {'message': 'add buy milk'}, format='json')
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body['reply'], 'Added "Buy milk" to your list.')
+        self.assertEqual(body['actions'][0]['tool'], 'create_task')
+        self.assertEqual(Todo.objects.count(), 1)
+        self.assertEqual(Todo.objects.get().title, 'Buy milk')
+
+    def test_chat_runs_recommend_tool_for_what_next(self):
+        Todo.objects.create(title='Oldest task')
+        Todo.objects.create(title='Newest task')
+        first = {'candidates': [{'content': {'parts': [
+            {'functionCall': {'name': 'recommend_tasks', 'args': {}}},
+        ]}}]}
+        second = {'candidates': [{'content': {'parts': [
+            {'text': 'Start with "Oldest task" - it has been waiting longest.'},
+        ]}}]}
+        with patch('todo_list.agent._generate', side_effect=[first, second]):
+            response = self.client.post(
+                self.chat_url, {'message': 'what should I do next?'}, format='json'
+            )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body['actions'][0]['tool'], 'recommend_tasks')
+        self.assertEqual(body['actions'][0]['result']['total'], 2)
+        self.assertEqual(body['actions'][0]['result']['focus_next'][0]['title'], 'Oldest task')
+
+    def test_chat_without_key_reports_503(self):
+        with override_settings(GEMINI_API_KEY=''):
+            response = self.client.post(self.chat_url, {'message': 'hi'}, format='json')
+
+        self.assertEqual(response.status_code, 503)
+        self.assertIn('GEMINI_API_KEY', response.json()['detail'])
+
+
+    def test_tool_results_are_sent_back_as_user_role(self):
+        # Regression test: newer Gemini models reject role 'function' and only
+        # accept user/model, so tool results must go back as 'user'.
+        first = {'candidates': [{'content': {'parts': [
+            {'functionCall': {'name': 'list_tasks', 'args': {}}},
+        ]}}]}
+        second = {'candidates': [{'content': {'parts': [{'text': 'Here you go.'}]}}]}
+        seen_payloads = []
+
+        def fake_generate(payload, api_key, model):
+            seen_payloads.append(payload)
+            return first if len(seen_payloads) == 1 else second
+
+        with patch('todo_list.agent._generate', side_effect=fake_generate):
+            response = self.client.post(self.chat_url, {'message': 'list my tasks'}, format='json')
+
+        self.assertEqual(response.status_code, 200)
+        tool_turn = seen_payloads[1]['contents'][-1]
+        self.assertEqual(tool_turn['role'], 'user')
+        self.assertIn('functionResponse', tool_turn['parts'][0])
+        roles = {turn['role'] for turn in seen_payloads[1]['contents']}
+        self.assertTrue(roles <= {'user', 'model'})
+    def test_model_parts_are_echoed_verbatim_with_thought_signature(self):
+        # Regression test: gemini-3.x rejects the follow-up call when the model's
+        # thoughtSignature is dropped, so the model turn must echo the original
+        # parts verbatim (including any free-standing text, which carries its own
+        # signature coverage).
+        first = {'candidates': [{'content': {'parts': [
+            {'text': 'On it.'},
+            {'functionCall': {'name': 'create_task', 'args': {'title': 'Buy milk'}},
+             'thoughtSignature': 'sig-123'},
+        ]}}]}
+        second = {'candidates': [{'content': {'parts': [{'text': 'Added it.'}]}}]}
+        seen_payloads = []
+
+        def fake_generate(payload, api_key, model):
+            seen_payloads.append(copy.deepcopy(payload))
+            return first if len(seen_payloads) == 1 else second
+
+        with patch('todo_list.agent._generate', side_effect=fake_generate):
+            response = self.client.post(self.chat_url, {'message': 'add buy milk'}, format='json')
+
+        self.assertEqual(response.status_code, 200)
+        echo = seen_payloads[1]['contents'][1]
+        self.assertEqual(echo['role'], 'model')
+        call_part = next(p for p in echo['parts'] if 'functionCall' in p)
+        self.assertEqual(call_part.get('thoughtSignature'), 'sig-123')
+        self.assertTrue(any('text' in p for p in echo['parts']))
+
+>>>>>>> 8c201bfeefa40177a9044714891cc0f7c9ec53f4:backend/todo_list/tests/test_api.py

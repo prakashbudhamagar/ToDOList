@@ -84,8 +84,6 @@ Everything configurable is read from the environment (`docker-compose.yml` sets 
 | `CORS_ALLOWED_ORIGINS` | extra origins allowed to read the API | `http://localhost:8080,http://127.0.0.1:8080` |
 | `SQLITE_PATH` | where the database file lives | `/app/data/db.sqlite3` |
 | `REDIS_URL` | cache location; leave unset to use the in-process memory cache | `redis://redis:6379/0` |
-| `GEMINI_API_KEY` | LLM key for the `/api/chat/` assistant | read from `backend/.env`, which compose mounts with `env_file` |
-| `GEMINI_MODEL` | Gemini model name | `gemini-3.6-flash` (also from `backend/.env`) |
 
 The nginx entrypoint proxies `/api/` only, so Django admin is not exposed in
 Docker. Run Django directly to use the admin (see below).
@@ -196,13 +194,6 @@ there is nothing but `/api/` and `/admin/`. `frontend/vite.config.js` proxies
 | PUT / PATCH | `/api/todos/<id>/` | update a task (the React app uses PATCH, so `create_at` is untouched) |
 | DELETE | `/api/todos/<id>/` | delete a task |
 | GET | `/api/csrf/` | sets the `csrftoken` cookie used for write requests |
-| POST | `/api/chat/` | chat with the Gemini assistant (`{"message": "...", "history": [...]}` -> `{"reply": "...", "actions": [...]}`); recommendations come back with an estimated duration per task |
-
-Every task has a priority: `1` = Low, `2` = Medium (default), `3` = High - see
-`Todo.Priority` in `backend/tasks/models.py`. Responses include both the stored
-number (`priority`) and its label (`priority_label`, e.g. `"High"`), and the
-inventory is served ordered by priority (high first) and then by age, so the list
-reads as a plan rather than a log.
 
 Open any `/api/` URL in a browser to use DRF's browsable API. Write requests need
 the `X-CSRFToken` header when you are also logged into the admin in the same
@@ -215,106 +206,6 @@ cd frontend
 npm run build      # outputs frontend/dist (git-ignored)
 npm run preview    # serve the built bundle locally
 ```
-
-## Monorepo tooling
-
-The repo root is an [npm workspaces](https://docs.npmjs.com/cli/v10/using-npm/workspaces)
-monorepo with [Turborepo](https://turbo.build/repo) orchestrating tasks across
-both `frontend/` (npm/Vite) and `backend/` (Python/Django). `backend/package.json`
-has no real npm dependencies - it exists only so Turborepo can drive the Django
-commands with the same interface as the frontend.
-
-### One-time setup
-
-```powershell
-# from the repository root
-npm run setup
-```
-
-This runs `npm install` (linking both workspaces and installing frontend deps),
-then creates `backend/.venv` and installs `backend/requirements.txt` into it.
-
-### Everyday commands (run from the repository root)
-
-| Command | What it does |
-|---|---|
-| `npm run dev` | Runs both dev servers together (Vite on :5173, Django on :8000) via Turborepo |
-| `npm run dev:frontend` | Just the Vite dev server |
-| `npm run dev:backend` | Just `python manage.py runserver` |
-| `npm run build` | Builds the frontend bundle and runs Django `collectstatic`, in dependency order, with Turborepo's cache (unchanged packages are skipped on repeat runs) |
-| `npm run lint` | Lints both packages (backend needs `flake8` installed; skipped gracefully if it's missing) |
-| `npm run test` | Runs `python manage.py test` for the backend and any frontend tests |
-| `npm run clean` | Removes build artifacts, `.venv`, and `node_modules` from both packages |
-
-Each workspace still works standalone exactly as before (`cd backend && python
-manage.py runserver`, `cd frontend && npm run dev`) - the root scripts are a
-convenience layer on top, not a replacement.
-
-### Layout
-
-```text
-ToDOList/
-├── package.json        # workspace root: "workspaces": ["frontend", "backend"]
-├── turbo.json           # task pipeline (dev/build/lint/test/clean)
-├── frontend/
-│   └── package.json     # real npm dependencies (React, Vite, ...)
-└── backend/
-    ├── package.json     # scripts only, no npm dependencies
-    └── scripts/pip-install.js   # cross-platform "pip install -r requirements.txt"
-```
-
-## AI assistant
-
-A chat widget (bottom-right of the React app) talks to Google Gemini. The flow is
-deliberately backend-only so the key can never leak:
-
-```
-browser -- POST /api/chat/ {message, history} --> Django --> Gemini API
-browser <-- {reply, actions} <-- Django <-- tool results + final answer
-```
-
-- The key lives in `backend/.env` as `GEMINI_API_KEY` (git-ignored; copy
-  `backend/.env.example` to `backend/.env` and paste a free key from
-  <https://aistudio.google.com/apikey>). `backend/config/settings.py` loads that
-  file for a local `runserver`, and `docker-compose.yml` hands the same file to
-  the api container with `env_file: ./backend/.env`. That file is the only
-  source: the key is deliberately *not* repeated under the service's
-  `environment:` block, because an `environment` entry overrides `env_file` and
-  would replace the key with an empty string whenever the host shell has no copy
-  of it.
-- `backend/chat/agent.py` calls Gemini's `generateContent` REST endpoint with
-  plain `urllib` (no SDK dependency) and exposes five tools the model can call:
-  `list_tasks`, `create_task`, `update_task`, `delete_task`, `recommend_tasks`.
-  `create_task` and `update_task` take an optional `priority`
-  (`low`/`medium`/`high`); `recommend_tasks` returns the task count plus the five
-  tasks to tackle first - urgent before old, each with its priority and an
-  estimated duration from `tasks/estimates.py` - so the model can answer "what
-  should I do next?" with both an order and a time budget. Tool writes go
-  straight to the database and clear the cached task list, so the UI reload shows
-  them immediately.
-- `POST /api/chat/` (`ChatView` in `backend/chat/views.py`) validates the
-  message (required, max 2000 chars; last 6 history turns forwarded) and returns
-  `{"reply": "...", "actions": [...]}`. With no key configured it answers 503.
-- The React side is `frontend/src/features/chat/components/ChatPanel.jsx` (floating Chat
-  button -> panel with bubbles, "Thinking…" state and error display), `sendChatMessage`
-  in `frontend/src/features/chat/api.js`, and a `reload` action from
-  `frontend/src/features/todos/useTodos.js` so the
-  list refreshes whenever the assistant ran a task tool. Voice is built into the
-  panel with the browser's free Web Speech API (no key, no dependency): a Speak
-  button fills the input via SpeechRecognition, and replies are read aloud via
-  speechSynthesis with a "Speak replies" toggle (best in Chrome/Edge over
-  HTTP-or-HTTPS `localhost`; the button hides itself where unsupported).
-
-Without a key the endpoint returns 503 and the widget shows the error; the chat
-tests in `backend/chat/tests/test_chat.py` stub the Gemini HTTP call, so
-`python manage.py test` needs no key and no network.
-
-> Seeing `503 No GEMINI_API_KEY is configured` while the key *is* in
-> `backend/.env`? Django reads that file once at start-up, so restart the server
-> after editing it (`runserver` does not auto-reload on `.env` changes); with
-> Docker re-create the container with
-> `docker compose up -d --force-recreate api`. Current AI Studio keys look like
-> `AQ.Ab8R…` and older ones like `AIza…` - both are accepted.
 
 ## Admin
 
@@ -364,23 +255,13 @@ ToDOList/                          <- repository root
 │   │   ├── tests.py               <- tests for the shared config pieces
 │   │   ├── asgi.py
 │   │   └── wsgi.py
-│   ├── tasks/                     <- feature app: task CRUD
-│   │   ├── models.py              <- Todo model (title, priority, create_at)
-│   │   ├── estimates.py           <- 'how long may this take' heuristic (assistant only)
-│   │   ├── serializers.py         <- TodoSerializer (priority + priority_label)
-│   │   ├── cache.py               <- task-list cache key + clear helper (shared with chat)
-│   │   ├── views.py               <- TodoViewSet (/api/todos/)
-│   │   ├── urls.py                <- the todos router
-│   │   ├── admin.py
-│   │   ├── migrations/
-│   │   └── tests/
-│   │       ├── test_models.py
-│   │       ├── test_estimates.py
-│   │       └── test_api.py
-│   └── chat/                      <- feature app: AI assistant
-│       ├── agent.py               <- Gemini chat backend + task tools (urllib, no SDK)
-│       ├── views.py               <- ChatView (/api/chat/)
-│       ├── urls.py
+│   └── todo_list/                 <- the application
+│       ├── models.py              <- Todo model (title, create_at)
+│       ├── serializers.py         <- TodoSerializer
+│       ├── views.py               <- TodoViewSet + csrf endpoint
+│       ├── urls.py                <- the /api/ router
+│       ├── admin.py
+│       ├── migrations/
 │       └── tests/
 │           └── test_chat.py
 └── frontend/                      <- React + Vite SPA (the only user interface)
@@ -395,25 +276,15 @@ ToDOList/                          <- repository root
         ├── main.jsx
         ├── App.jsx                <- page shell (composition only)
         ├── index.css
-        ├── shared/
-        │   └── api/
-        │       └── client.js      <- fetch wrapper + CSRF handling (used by all features)
-        └── features/              <- one folder per feature (work one feature at a time)
-            ├── todos/             <- task CRUD feature
-            │   ├── api.js         <- one function per /api/todos/ endpoint
-            │   ├── priorities.js  <- the three levels + their labels (single source)
-            │   ├── useTodos.js    <- task state and API actions (incl. reload)
-            │   ├── index.js       <- the feature's public exports
-            │   └── components/
-            │       ├── AddTodoForm.jsx  <- create a task (title + priority)
-            │       ├── PrioritySelect.jsx <- tinted priority dropdown, reused everywhere
-            │       ├── TodoList.jsx     <- rows, loading and empty state
-            │       └── TodoItem.jsx     <- row, priority, inline edit, delete
-            └── chat/              <- AI assistant feature
-                ├── api.js         <- sendChatMessage (/api/chat/)
-                ├── index.js       <- the feature's public exports
-                └── components/
-                    └── ChatPanel.jsx    <- floating assistant chat (talks to /api/chat/)
+        ├── api/
+        │   ├── client.js          <- fetch wrapper + CSRF handling
+        │   └── todos.js           <- one function per endpoint
+        ├── components/
+        │   ├── AddTodoForm.jsx    <- create a task
+        │   ├── TodoList.jsx       <- rows, loading and empty state
+        │   └── TodoItem.jsx       <- row, inline edit, delete confirmation
+        └── hooks/
+            └── useTodos.js        <- task state and API actions
 ```
 
 ## Notes

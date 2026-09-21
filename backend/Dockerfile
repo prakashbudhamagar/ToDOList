@@ -14,7 +14,7 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# manage.py, the config package and the todo_list app.
+# manage.py, the config package and the feature apps (tasks, chat).
 COPY . ./
 
 # The SQLite file lives on a volume (SQLITE_PATH) so the tasks outlive the container.

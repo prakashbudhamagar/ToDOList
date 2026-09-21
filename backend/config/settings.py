@@ -10,6 +10,36 @@ def env_list(name):
     return [item.strip() for item in os.environ.get(name, '').split(',') if item.strip()]
 
 
+def load_dotenv(path):
+    """Load KEY=value lines from a .env file without overwriting real env vars.
+
+    Keeps the backend dependency-free (no django-environ/python-dotenv needed):
+    docker compose passes the same keys as real environment, which always win.
+
+    A variable that exists but is blank counts as unset, so an empty placeholder
+    (for example ``GEMINI_API_KEY=""`` from a service definition) cannot hide the
+    real key in the file - a mismatch that is otherwise impossible to debug.
+    """
+    try:
+        with open(path, encoding='utf-8') as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        return
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+        key, _, value = line.partition('=')
+        key, value = key.strip(), value.strip().strip('\'"')
+        if key and not os.environ.get(key, '').strip():
+            os.environ[key] = value
+
+
+# backend/.env holds local secrets (GEMINI_API_KEY). A real environment variable
+# - for example from docker-compose.yml - always takes precedence.
+load_dotenv(BASE_DIR / '.env')
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
@@ -39,8 +69,9 @@ INSTALLED_APPS = [
     # Third-party
     'rest_framework',
     'corsheaders',
-    # Local
-    'todo_list',
+    # Feature apps - one Django app per feature (tasks = task CRUD, chat = AI assistant)
+    'tasks',
+    'chat',
 ]
 
 MIDDLEWARE = [
@@ -189,3 +220,12 @@ CSRF_TRUSTED_ORIGINS = [
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# ---------------------------------------------------------------------------
+# AI assistant (Gemini). The key lives server-side only: backend/.env locally
+# (git-ignored, see backend/.env.example) or GEMINI_API_KEY in docker-compose.
+# The browser talks to /api/chat/ and never sees the key.
+# ---------------------------------------------------------------------------
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.6-flash')

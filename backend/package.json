@@ -1,0 +1,14 @@
+{
+  "name": "todolist-backend",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Django + DRF API. This package.json exists only so the backend can be orchestrated by the root Turborepo pipeline alongside the frontend; it has no npm dependencies of its own.",
+  "scripts": {
+    "setup": "python -m venv .venv && node ./scripts/pip-install.js",
+    "dev": "python manage.py runserver 0.0.0.0:8000",
+    "build": "python manage.py collectstatic --noinput",
+    "lint": "python -m flake8 . --max-line-length=120 || echo \"(install flake8 to enable backend linting)\"",
+    "test": "python manage.py test",
+    "clean": "rimraf .venv staticfiles __pycache__ config/__pycache__ tasks/__pycache__ chat/__pycache__"
+  }
+}

@@ -10,6 +10,11 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    # backend/.env (git-ignored, see backend/.env.example) is loaded when present;
+    # real environment values below take precedence over it.
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
       # SECURITY: replace this before exposing the app to anything but localhost.
       DJANGO_SECRET_KEY: "django-insecure-change-me-before-deploying"
@@ -20,8 +25,12 @@ services:
       CSRF_TRUSTED_ORIGINS: "http://localhost:${WEB_PORT:-8080},http://127.0.0.1:${WEB_PORT:-8080}"
       CORS_ALLOWED_ORIGINS: "http://localhost:${WEB_PORT:-8080},http://127.0.0.1:${WEB_PORT:-8080}"
       SQLITE_PATH: "/app/data/db.sqlite3"
-      # Cache used by the task list endpoint (see todo_list/views.py).
+      # Cache used by the task list endpoint (see tasks/views.py).
       REDIS_URL: "redis://redis:6379/0"
+      # GEMINI_API_KEY / GEMINI_MODEL are NOT repeated here on purpose: an
+      # `environment` entry overrides `env_file`, so listing them would replace
+      # the key in ./backend/.env with an empty string whenever the host shell
+      # has no copy of it. Edit ./backend/.env to change the key or the model.
     volumes:
       - sqlite-data:/app/data
     # The API only needs Redis at request time, but waiting for it keeps the very

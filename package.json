@@ -1,0 +1,29 @@
+{
+  "name": "todolist-monorepo",
+  "private": true,
+  "version": "1.0.0",
+  "description": "ToDoList monorepo: Django REST backend + React/Vite frontend, orchestrated with npm workspaces and Turborepo.",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "setup": "npm install && npm run setup --workspace=backend",
+    "dev": "turbo run dev",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:backend": "npm run dev --workspace=backend",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "clean": "turbo run clean && rimraf node_modules"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "turbo": "^2.5.0"
+  },
+  "engines": {
+    "node": ">=18",
+    "npm": ">=10"
+  },
+  "packageManager": "npm@10.9.7"
+}

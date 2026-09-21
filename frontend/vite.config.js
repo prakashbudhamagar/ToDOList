@@ -1,8 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// The dev server proxies /api/* to Django, so the browser only ever talks to
-// one origin: no CORS preflights, and the csrftoken cookie stays first-party.
 export default defineConfig({
   plugins: [react()],
   server: {

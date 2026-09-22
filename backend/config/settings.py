@@ -15,13 +15,10 @@ def load_dotenv(path):
 
     Keeps the backend dependency-free (no django-environ/python-dotenv needed):
     docker compose passes the same keys as real environment, which always win.
-<<<<<<< HEAD
 
     A variable that exists but is blank counts as unset, so an empty placeholder
     (for example ``GEMINI_API_KEY=""`` from a service definition) cannot hide the
     real key in the file - a mismatch that is otherwise impossible to debug.
-=======
->>>>>>> 8c201bfeefa40177a9044714891cc0f7c9ec53f4
     """
     try:
         with open(path, encoding='utf-8') as fh:
@@ -34,11 +31,7 @@ def load_dotenv(path):
             continue
         key, _, value = line.partition('=')
         key, value = key.strip(), value.strip().strip('\'"')
-<<<<<<< HEAD
         if key and not os.environ.get(key, '').strip():
-=======
-        if key and key not in os.environ:
->>>>>>> 8c201bfeefa40177a9044714891cc0f7c9ec53f4
             os.environ[key] = value
 
 

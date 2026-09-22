@@ -82,8 +82,4 @@ export function useTodos() {
   )
 
   return { todos, loading, error, addTodo, editTodo, removeTodo, reload: loadTodos }
-<<<<<<< HEAD:frontend/src/features/todos/useTodos.js
 }
-=======
-}
->>>>>>> 8c201bfeefa40177a9044714891cc0f7c9ec53f4:frontend/src/hooks/useTodos.js

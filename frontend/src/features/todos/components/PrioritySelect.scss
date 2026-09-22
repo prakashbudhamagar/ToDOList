@@ -1,0 +1,28 @@
+.priority-select {
+  padding: 6px 8px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+
+  &.priority-low {
+    color: var(--color-low-text);
+    background: var(--color-low-bg);
+    border-color: var(--color-low-border);
+  }
+
+  &.priority-medium {
+    color: var(--color-medium-text);
+    background: var(--color-medium-bg);
+    border-color: var(--color-medium-border);
+  }
+
+  &.priority-high {
+    color: var(--color-danger-text);
+    background: var(--color-danger-bg);
+    border-color: var(--color-danger-border);
+  }
+}

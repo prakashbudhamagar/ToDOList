@@ -1,13 +1,14 @@
-import { AddTodoForm, TodoList, useTodos } from './features/todos'
 import { ChatPanel } from './features/chat'
+import { AddTodoForm, TodoList, useTodos } from './features/todos'
 
-/** Page shell: wires the task state from useTodos to the presentational parts. */
+import './App.scss'
+
 export default function App() {
   const { todos, loading, error, addTodo, editTodo, removeTodo, reload } = useTodos()
 
   return (
     <main className="app">
-      <h1>Prkash to Do</h1>
+      <h1>Prakash To Do</h1>
 
       <AddTodoForm onAdd={addTodo} />
 

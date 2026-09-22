@@ -1,0 +1,30 @@
+@import 'tailwindcss';
+
+@theme inline {
+  --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-primary-soft: var(--color-primary-soft);
+  --color-text: var(--color-text);
+  --color-text-strong: var(--color-text-strong);
+  --color-surface: var(--color-surface);
+  --color-surface-secondary: var(--color-surface-secondary);
+  --color-surface-secondary-hover: var(--color-surface-secondary-hover);
+  --color-page: var(--color-page);
+  --color-danger: var(--color-danger);
+  --color-danger-hover: var(--color-danger-hover);
+  --color-border-strong: var(--color-border-strong);
+  --color-accent: var(--color-surface-alt);
+  --color-accent-foreground: var(--color-text-strong);
+  --color-input: var(--color-border-strong);
+  --color-ring: var(--color-primary);
+}
+
+@source inline('flex hidden');
+
+@layer base {
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}
+

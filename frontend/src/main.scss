@@ -1,0 +1,126 @@
+$primary: #2f6fed;
+$primary-hover: #2457bd;
+$primary-soft: #e3edff;
+
+$text: #222;
+$text-strong: #333;
+$text-subtle: #555;
+$text-muted: #777;
+
+$surface: #fff;
+$surface-alt: #f1f3f5;
+$surface-secondary: #e9e9ec;
+$surface-secondary-hover: #d8d8dd;
+
+$border: #ddd;
+$border-strong: #ccc;
+$border-light: #eee;
+$page: #f7f7f8;
+
+$danger: #c0392b;
+$danger-hover: #96271b;
+$danger-text: #8a1f11;
+$danger-bg: #fdecea;
+$danger-border: #f5c6cb;
+
+$low-text: #1e7b45;
+$low-bg: #e7f6ec;
+$low-border: #bfe6cd;
+
+$medium-text: #8a5300;
+$medium-bg: #fff4e0;
+$medium-border: #f0d9ad;
+
+$radius: 4px;
+$radius-pill: 999px;
+
+:root {
+  font-family: Arial, Helvetica, sans-serif;
+  color: $text;
+
+  --color-primary: #{$primary};
+  --color-primary-soft: #{$primary-soft};
+  --color-text-subtle: #{$text-subtle};
+  --color-text-muted: #{$text-muted};
+  --color-surface: #{$surface};
+  --color-surface-alt: #{$surface-alt};
+  --color-border: #{$border};
+  --color-border-strong: #{$border-strong};
+  --color-border-light: #{$border-light};
+  --color-danger-text: #{$danger-text};
+  --color-danger-bg: #{$danger-bg};
+  --color-danger-border: #{$danger-border};
+  --color-low-text: #{$low-text};
+  --color-low-bg: #{$low-bg};
+  --color-low-border: #{$low-border};
+  --color-medium-text: #{$medium-text};
+  --color-medium-bg: #{$medium-bg};
+  --color-medium-border: #{$medium-border};
+  --radius: #{$radius};
+  --radius-pill: #{$radius-pill};
+
+  --color-primary: #{$primary};
+  --color-primary-hover: #{$primary-hover};
+  --color-primary-soft: #{$primary-soft};
+  --color-text: #{$text};
+  --color-text-strong: #{$text-strong};
+  --color-surface-secondary: #{$surface-secondary};
+  --color-surface-secondary-hover: #{$surface-secondary-hover};
+  --color-page: #{$page};
+  --color-danger: #{$danger};
+  --color-danger-hover: #{$danger-hover};
+}
+
+body {
+  margin: 0;
+  background: $page;
+}
+
+h1 {
+  border-bottom: 2px solid $text-strong;
+  padding-bottom: 8px;
+}
+
+button {
+  padding: 10px 16px;
+  font-size: 0.95rem;
+  color: $surface;
+  background: $primary;
+  border: none;
+  border-radius: $radius;
+  cursor: pointer;
+
+  &:hover {
+    background: $primary-hover;
+  }
+
+  &.secondary {
+    color: $text-strong;
+    background: $surface-secondary;
+
+    &:hover {
+      background: $surface-secondary-hover;
+    }
+  }
+
+  &.danger {
+    background: $danger;
+
+    &:hover {
+      background: $danger-hover;
+    }
+  }
+}
+
+.error {
+  padding: 10px 12px;
+  color: $danger-text;
+  background: $danger-bg;
+  border: 1px solid $danger-border;
+  border-radius: $radius;
+}
+
+.empty {
+  color: $text-muted;
+  font-style: italic;
+}

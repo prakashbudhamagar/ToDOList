@@ -1,15 +1,20 @@
 import { useState } from 'react'
+import type { FormEvent } from 'react'
+import type { PriorityValue, Todo, TodoChanges } from '../types'
+import PrioritySelect from './PrioritySelect'
 
-import PrioritySelect from './PrioritySelect.jsx'
+import './TodoItem.scss'
 
-/**
- * One task row. Editing, the priority change and the delete confirmation are
- * local UI state, so the parent only has to provide the API actions.
- */
-export default function TodoItem({ todo, onUpdate, onDelete }) {
+export interface TodoItemProps {
+  todo: Todo
+  onUpdate: (id: number, fields: TodoChanges) => Promise<boolean>
+  onDelete: (id: number) => Promise<boolean>
+}
+
+export default function TodoItem({ todo, onUpdate, onDelete }: TodoItemProps) {
   const [editing, setEditing] = useState(false)
   const [editedTitle, setEditedTitle] = useState(todo.title)
-  const [editedPriority, setEditedPriority] = useState(todo.priority)
+  const [editedPriority, setEditedPriority] = useState<PriorityValue>(todo.priority)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   function startEditing() {
@@ -19,15 +24,14 @@ export default function TodoItem({ todo, onUpdate, onDelete }) {
     setEditing(true)
   }
 
-  async function handleSubmit(event) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (await onUpdate(todo.id, { title: editedTitle, priority: editedPriority })) {
       setEditing(false)
     }
   }
 
-  /** Changing the level in the row saves it right away, no edit mode needed. */
-  async function handlePriorityChange(priority) {
+  async function handlePriorityChange(priority: PriorityValue) {
     await onUpdate(todo.id, { priority })
   }
 

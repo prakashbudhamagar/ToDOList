@@ -1,11 +1,45 @@
 import { useEffect, useRef, useState } from 'react'
+import type { FormEvent } from 'react'
+import { errorMessage } from '../../../shared/api/client'
+import { sendChatMessage } from '../api'
+import type { ChatMessage } from '../api'
 
-import { sendChatMessage } from '../api.js'
+import './ChatPanel.scss'
 
+// SpeechRecognition itself is missing from lib.dom.d.ts (only its event types are
+// declared), and Chrome/Edge expose it as SpeechRecognition, Safari with the
+// webkit prefix.
+interface SpeechRecognitionLike extends EventTarget {
+  lang: string
+  interimResults: boolean
+  onresult: ((event: SpeechRecognitionEvent) => void) | null
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null
+  onend: ((event: Event) => void) | null
+  start(): void
+  stop(): void
+  abort(): void
+}
 
-export default function ChatPanel({ onTasksChanged }) {
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike
+
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionConstructor
+    webkitSpeechRecognition?: SpeechRecognitionConstructor
+  }
+}
+
+function speechRecognitionConstructor(): SpeechRecognitionConstructor | undefined {
+  return window.SpeechRecognition ?? window.webkitSpeechRecognition
+}
+
+export interface ChatPanelProps {
+  onTasksChanged: () => Promise<void>
+}
+
+export default function ChatPanel({ onTasksChanged }: ChatPanelProps) {
   const [open, setOpen] = useState(false)
-  const [messages, setMessages] = useState([
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: 'model',
       text: 'Hi! I can add, edit, delete and recommend tasks. Try "add buy milk as high priority" or "what should I do next?" and I will tell you how long each task may take.',
@@ -13,15 +47,14 @@ export default function ChatPanel({ onTasksChanged }) {
   ])
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
   const [listening, setListening] = useState(false)
   const [voiceSupported, setVoiceSupported] = useState(false)
   const [spokenReplies, setSpokenReplies] = useState(true)
-  const recognitionRef = useRef(null)
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
 
   useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (SpeechRecognition && window.speechSynthesis) {
+    if (speechRecognitionConstructor() && window.speechSynthesis) {
       setVoiceSupported(true)
     }
     return () => {
@@ -30,7 +63,7 @@ export default function ChatPanel({ onTasksChanged }) {
     }
   }, [])
 
-  function speak(text) {
+  function speak(text: string) {
     if (!spokenReplies || !window.speechSynthesis) {
       return
     }
@@ -43,12 +76,12 @@ export default function ChatPanel({ onTasksChanged }) {
       recognitionRef.current?.stop()
       return
     }
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognition) {
+    const Recognition = speechRecognitionConstructor()
+    if (!Recognition) {
       setError('Voice input is not supported in this browser - try Chrome or Edge.')
       return
     }
-    const recognition = new SpeechRecognition()
+    const recognition = new Recognition()
     recognition.lang = 'en-US'
     recognition.interimResults = true
     recognition.onresult = (event) => {
@@ -75,14 +108,14 @@ export default function ChatPanel({ onTasksChanged }) {
     setListening(true)
   }
 
-  async function handleSubmit(event) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const text = draft.trim()
     if (!text || sending) {
       return
     }
     recognitionRef.current?.stop()
-    const nextMessages = [...messages, { role: 'user', text }]
+    const nextMessages: ChatMessage[] = [...messages, { role: 'user', text }]
     setMessages(nextMessages)
     setDraft('')
     setSending(true)
@@ -92,11 +125,11 @@ export default function ChatPanel({ onTasksChanged }) {
       const { reply, actions } = await sendChatMessage(text, history)
       setMessages([...nextMessages, { role: 'model', text: reply }])
       speak(reply)
-      if ((actions || []).length > 0) {
+      if (actions.length > 0) {
         await onTasksChanged()
       }
     } catch (err) {
-      setError(`Could not reach the assistant: ${err.message}`)
+      setError(`Could not reach the assistant: ${errorMessage(err)}`)
     } finally {
       setSending(false)
     }

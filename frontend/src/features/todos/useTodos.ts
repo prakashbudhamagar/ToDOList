@@ -1,19 +1,31 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import { createTodo, deleteTodo, listTodos, updateTodo } from './api.js'
-import { DEFAULT_PRIORITY } from './priorities.js'
+import { errorMessage } from '../../shared/api/client'
+import { createTodo, deleteTodo, listTodos, updateTodo } from './api'
+import { DEFAULT_PRIORITY } from './priorities'
+import type { PriorityValue, Todo, TodoChanges } from './types'
 
-export function useTodos() {
-  const [todos, setTodos] = useState([])
+export interface UseTodosResult {
+  todos: Todo[]
+  loading: boolean
+  error: string | null
+  addTodo: (title: string, priority?: PriorityValue) => Promise<boolean>
+  editTodo: (id: number, fields: TodoChanges) => Promise<boolean>
+  removeTodo: (id: number) => Promise<boolean>
+  reload: () => Promise<void>
+}
+
+export function useTodos(): UseTodosResult {
+  const [todos, setTodos] = useState<Todo[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
   const loadTodos = useCallback(async () => {
     try {
       setTodos(await listTodos())
       setError(null)
     } catch (err) {
-      setError(`Could not load tasks: ${err.message}`)
+      setError(`Could not load tasks: ${errorMessage(err)}`)
     } finally {
       setLoading(false)
     }
@@ -24,7 +36,7 @@ export function useTodos() {
   }, [loadTodos])
 
   const addTodo = useCallback(
-    async (title, priority = DEFAULT_PRIORITY) => {
+    async (title: string, priority: PriorityValue = DEFAULT_PRIORITY) => {
       const trimmed = title.trim()
       if (!trimmed) {
         return false
@@ -35,23 +47,23 @@ export function useTodos() {
         await loadTodos()
         return true
       } catch (err) {
-        setError(`Could not add the task: ${err.message}`)
+        setError(`Could not add the task: ${errorMessage(err)}`)
         return false
       }
     },
     [loadTodos],
   )
 
-  // `fields` holds only what changed - { title } and/or { priority }.
   const editTodo = useCallback(
-    async (id, fields) => {
-      const changes = { ...fields }
+    async (id: number, fields: TodoChanges) => {
+      const changes: TodoChanges = { ...fields }
       if (changes.title !== undefined) {
-        changes.title = changes.title.trim()
-        if (!changes.title) {
+        const title = changes.title.trim()
+        if (!title) {
           setError('A task needs a title.')
           return false
         }
+        changes.title = title
       }
       try {
         await updateTodo(id, changes)
@@ -59,7 +71,7 @@ export function useTodos() {
         await loadTodos()
         return true
       } catch (err) {
-        setError(`Could not update the task: ${err.message}`)
+        setError(`Could not update the task: ${errorMessage(err)}`)
         return false
       }
     },
@@ -67,14 +79,14 @@ export function useTodos() {
   )
 
   const removeTodo = useCallback(
-    async (id) => {
+    async (id: number) => {
       try {
         await deleteTodo(id)
         setError(null)
         await loadTodos()
         return true
       } catch (err) {
-        setError(`Could not delete the task: ${err.message}`)
+        setError(`Could not delete the task: ${errorMessage(err)}`)
         return false
       }
     },
